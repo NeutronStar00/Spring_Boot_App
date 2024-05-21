@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -33,14 +32,14 @@ public class UserService {
         return userRepository.findAll();
     }
 
-    public void addUserImage(Long id, String imageUrl) {
+    public void addUserImage(Long id, String imageUrl, String imageDeleteHash) {
         Optional<User> optionalUser = userRepository.findById(id);
         if (optionalUser.isPresent()) {
             User user = optionalUser.get();
             boolean imageExists = user.getImages().stream()
                     .anyMatch(image -> image.getImageUrl().equals(imageUrl));
             if (!imageExists) {
-                Image image = new Image(imageUrl);
+                Image image = new Image(imageUrl, imageDeleteHash);
                 image.setUser(user);
                 user.addImage(image);
                 userRepository.save(user);

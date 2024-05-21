@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.Principal;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/images")
@@ -24,29 +25,42 @@ public class ImgurController {
     public ResponseEntity<String> uploadImage(@RequestParam("image") MultipartFile image, Principal principal) {
         try {
             byte[] imageData = image.getBytes();
-            String imageUrl = imgurService.uploadImage(imageData);
+            Map<String, String> imgurResponse = imgurService.uploadImage(imageData);
+            String imageUrl = imgurResponse.get("link");
+            String imageDeleteHash = imgurResponse.get("deletehash");
+
             User user = userService.findByUsername(principal.getName());
-            userService.addUserImage(user.getId(), imageUrl);
+            userService.addUserImage(user.getId(), imageUrl, imageDeleteHash);
+
             return ResponseEntity.ok(imageUrl);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().build();
         }
     }
 
     @DeleteMapping("/delete/{imageId}")
-    public ResponseEntity<Void> deleteImage(@PathVariable Long imageId, Principal principal) {
+    public ResponseEntity<String> deleteImage(@PathVariable Long imageId, Principal principal) {
         try {
             User user = userService.findByUsername(principal.getName());
             Image image = userService.findImageById(imageId);
-            if (image != null) {
-                String imageUrl = image.getImageUrl();
-                imgurService.deleteImage(imageUrl);
-                userService.removeUserImage(user.getId(), imageId);
-                return ResponseEntity.ok().build();
+
+            if (image != null && image.getUser().getId().equals(user.getId())) {
+                String imageDeleteHash = image.getImageDeleteHash();
+                ResponseEntity<String> deleteResponse = imgurService.deleteImage(imageDeleteHash);
+
+                if (deleteResponse.getStatusCode().is2xxSuccessful()) {
+                    userService.removeUserImage(user.getId(), imageId);
+                    return ResponseEntity.ok().build();
+                } else {
+                    // Handle error response from Imgur API
+                    return ResponseEntity.status(deleteResponse.getStatusCode()).body(deleteResponse.getBody());
+                }
             } else {
                 return ResponseEntity.notFound().build();
             }
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().build();
         }
     }
